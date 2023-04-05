@@ -26,18 +26,15 @@ class CollectionViewController: UIViewController, MKMapViewDelegate, UICollectio
             self.coreDataPhotos = result
         }
         dataController.deleteImages(images: self.coreDataPhotos, pin: self.pin!)
-        //collectionView.dataSource = nil
-        //collectionView.dataSource = self
-        //collectionView.delegate = self
+
         self.response = nil
         self.images = []
         self.coreDataPhotos = []
-
-        //cancellableResponse = nil
-        //cancellableImageArray = nil
+        
         updateUI()
-        //newCollectionPressedArray = true
-        //newCollectionPressedResponse = true
+        newCollectionPressedArray = true
+        newCollectionPressedResponse = true
+        
         downloadImages()
     }
     
@@ -50,7 +47,6 @@ class CollectionViewController: UIViewController, MKMapViewDelegate, UICollectio
     var images: [UIImage]? = []//Downloaded images
     var response: [Photo]? = nil//Image data from API
     var pin: CoreDataPin? = nil
-    
     let client = Client()
     
     override func viewDidLoad() {
@@ -88,20 +84,25 @@ class CollectionViewController: UIViewController, MKMapViewDelegate, UICollectio
     private var cancellableResponse: AnyCancellable?
     private var cancellableImageArray: AnyCancellable?
     func observeReloadImageData(completion: @escaping () -> Void) {
-        if newCollectionPressedResponse == false {
+        if newCollectionPressedResponse == false || cancellableResponse == nil {
             cancellableResponse = client.updatedResponceData.sink(receiveValue: { [weak self] response in
                 self?.response = response
                 completion()
             })
+        } else {
+            completion()
         }
     }
     
     func observeReloadImageArray(completion: @escaping () -> Void) {
-        cancellableImageArray = client.updatedImageArray.sink(receiveValue: { [weak self] images in
-            self?.images = []
-            self?.images = images
+        if newCollectionPressedArray == false || cancellableImageArray == nil {
+            cancellableImageArray = client.updatedImageArray.sink(receiveValue: { [weak self] images in
+                self?.images = images
+                completion()
+            })
+        } else {
             completion()
-        })
+        }
     }
 
     func addImageToCoreData (image: UIImage) throws {
@@ -170,13 +171,22 @@ class CollectionViewController: UIViewController, MKMapViewDelegate, UICollectio
     }
     
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
-        let photoToDelete = coreDataPhotos[indexPath.row]
-        dataController.viewContext.delete(photoToDelete)
-        dataController.saveContext()
-        images!.remove(at: indexPath.row)
-        coreDataPhotos.remove(at: indexPath.row)
-        collectionView.deleteItems(at: [indexPath])
-        self.collectionView.reloadData()
+        let fetchRequest:NSFetchRequest<CoreDataPhoto> = CoreDataPhoto.fetchRequest()
+        let predicate = NSPredicate(format: "pin == %@", self.pin!)
+        fetchRequest.predicate = predicate
+
+        if let result = try? self.dataController.viewContext.fetch(fetchRequest) {
+            self.coreDataPhotos = result
+        }
+        if coreDataPhotos != [] {
+            let photoToDelete = coreDataPhotos[indexPath.row]
+            dataController.viewContext.delete(photoToDelete)
+            dataController.saveContext()
+            images!.remove(at: indexPath.row)
+            coreDataPhotos.remove(at: indexPath.row)
+            collectionView.deleteItems(at: [indexPath])
+            self.collectionView.reloadData()
+        }
     }
     
     func downloadImages() {
@@ -198,22 +208,21 @@ class CollectionViewController: UIViewController, MKMapViewDelegate, UICollectio
         
         if coreDataPhotos == [] {
             observeReloadImageData {
-                //if self.newCollectionPressedResponse == true {
-                //    self.response = nil
-                //}
+                if self.newCollectionPressedResponse == true {
+                    self.response = nil
+                }
                 if self.response == nil {
                     self.client.getFlikrPhotos(searchString: (self.pinTitle ?? " ")!)
-                    //self.newCollectionPressedResponse = false
+                    self.newCollectionPressedResponse = false
                 } else {
                     self.observeReloadImageArray {
-                        //if self.newCollectionPressedArray == true {
-                        //    self.images = nil
-                        //}
-                        if self.images == nil {
-                            self.client.getImages(photosArray: self.response!)
-                            //self.newCollectionPressedArray = false
+                        if self.newCollectionPressedArray == true {
+                            self.images = nil
                         }
-                        self.updateUI()
+                        if self.images == nil {
+                            self.newCollectionPressedArray = false
+                            self.client.getImages(photosArray: self.response!)
+                        }
                         // save images to core data
                         let count = self.images!.count
                         if count > 0{
@@ -223,6 +232,7 @@ class CollectionViewController: UIViewController, MKMapViewDelegate, UICollectio
                                 self.showFailure(title: "Could not save images", message: "Could not save images")
                             }
                         }
+                        self.updateUI()
                     }
                 }
             }
@@ -236,27 +246,11 @@ class CollectionViewController: UIViewController, MKMapViewDelegate, UICollectio
                     self.images!.append(image)
                 }
             }
-            updateUI()
         }
-        //|| newCollectionPressedArray == false
-        if images == nil  ||  images == []{
+        if images == nil  ||  images == [] {
             observeReloadImageArray {
                 self.updateUI()
             }
-        }
-        updateUI()
-        //newCollectionPressed = false
-    }
-    
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-        
-        if self.isMovingToParent {
-//            images = nil
-//            response = nil
-//            cancellableResponse = nil
-//            cancellableImageArray = nil
-//            coreDataPhotos = []
         }
     }
 }

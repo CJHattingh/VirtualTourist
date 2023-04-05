@@ -19,8 +19,6 @@ class Client {
     
     var viewController = UIViewController()
     
-    var randomPage = Int.random(in: 1...10)
-    
     func taskForGETRequest<ResponseType: Decodable>(url: URL, responseType: ResponseType.Type, completion: @escaping (ResponseType?, Error?) -> ()) -> URLSessionDataTask {
         let task = URLSession.shared.dataTask(with: url) { data, response, error in
             guard let data = data else {
@@ -49,6 +47,7 @@ class Client {
     }
     
     func getFlikrPhotos(searchString: String) {
+        var randomPage = Int.random(in: 1...10)
         var completeURL = URLComponents(string: "https://www.flickr.com/services/rest/")
         completeURL!.queryItems = [
             URLQueryItem(name: "method", value: "flickr.photos.search"),
@@ -57,7 +56,7 @@ class Client {
             URLQueryItem(name: "format", value: "json"),
             URLQueryItem(name: "nojsoncallback", value: String(1)),
             URLQueryItem(name: "page", value: String(randomPage)),
-            URLQueryItem(name: "per_page", value: String(5))
+            URLQueryItem(name: "per_page", value: String(20))
         ]
         print(searchString)
         taskForGETRequest(url: completeURL!.url!, responseType: PhotosList.self) { response, error in
